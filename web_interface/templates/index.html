@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PDF to Audiobook AI</title>
+    <style>
+        body { font-family: sans-serif; max-width: 600px; margin: auto; padding: 20px; }
+        h1 { color: #333; }
+        form { margin-top: 20px; padding: 20px; border: 1px solid #ddd; border-radius: 5px; }
+        .form-group { margin-bottom: 15px; }
+        label { display: block; margin-bottom: 5px; }
+        input[type="file"], select { width: 100%; padding: 8px; }
+        button { padding: 10px 15px; background-color: #007bff; color: white; border: none; border-radius: 5px; cursor: pointer; }
+        button:hover { background-color: #0056b3; }
+        #status { margin-top: 20px; padding: 10px; border: 1px solid #ddd; border-radius: 5px; background-color: #f9f9f9; }
+    </style>
+</head>
+<body>
+    <h1>PDF to Audiobook Converter</h1>
+
+    <form id="upload-form" enctype="multipart/form-data">
+        <div class="form-group">
+            <label for="file">PDF File:</label>
+            <input type="file" id="file" name="file" accept=".pdf" required>
+        </div>
+        <div class="form-group">
+            <label for="voice_model">Voice Model:</label>
+            <select id="voice_model" name="voice_model">
+                <option value="default">Default</option>
+                <option value="custom_voice_1">Custom Voice 1</option>
+            </select>
+        </div>
+        <div class="form-group">
+            <label><input type="checkbox" name="summarize" value="true"> Summarize Content?</label>
+        </div>
+        <div class="form-group">
+            <label for="format">Output Format:</label>
+            <select id="format" name="format">
+                <option value="mp3">MP3</option>
+                <option value="wav">WAV</option>
+                <option value="m4a">M4A</option>
+            </select>
+        </div>
+        <button type="submit">Convert to Audiobook</button>
+    </form>
+
+    <div id="status">
+        <p>Upload a file to begin the conversion process.</p>
+    </div>
+
+    <script>
+        const form = document.getElementById('upload-form');
+        const statusDiv = document.getElementById('status');
+
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            const formData = new FormData(form);
+            statusDiv.innerHTML = '<p>Uploading and processing...</p>';
+
+            try {
+                const response = await fetch('/upload', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const result = await response.json();
+
+                if (response.ok) {
+                    statusDiv.innerHTML = `<p>Processing started. Task ID: ${result.task_id}</p><p>Checking status...</p>`;
+                    checkTaskStatus(result.task_id);
+                } else {
+                    statusDiv.innerHTML = `<p>Error: ${result.error}</p>`;
+                }
+            } catch (error) {
+                statusDiv.innerHTML = `<p>Error: ${error.message}</p>`;
+            }
+        });
+
+        function checkTaskStatus(taskId) {
+            const interval = setInterval(async () => {
+                try {
+                    const response = await fetch(`/status/${taskId}`);
+                    const result = await response.json();
+
+                    if (result.state === 'SUCCESS') {
+                        clearInterval(interval);
+                        statusDiv.innerHTML = \`
+                            <p>Conversion complete!</p>
+                            <p>Text Length: \${result.result.text_length}</p>
+                            <p>Original Text (first 500 chars):</p>
+                            <pre>\${result.result.original_text}</pre>
+                            <a href="/download/\${result.result.output_path}" download>Download Audiobook</a>
+                        \`;
+                    } else if (result.state === 'FAILURE') {
+                        clearInterval(interval);
+                        statusDiv.innerHTML = \`<p>Task Failed: \${result.status}</p>\`;
+                    } else {
+                        statusDiv.innerHTML = \`<p>Status: \${result.state} - \${result.status || ''}</p>\`;
+                    }
+                } catch (error) {
+                    clearInterval(interval);
+                    statusDiv.innerHTML = \`<p>Error checking status: \${error.message}</p>\`;
+                }
+            }, 3000);
+        }
+    </script>
+</body>
+</html>
